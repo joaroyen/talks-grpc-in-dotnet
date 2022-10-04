@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package greet;
+
+import "google/protobuf/wrappers.proto";
+import "common.proto";
+
+option csharp_namespace = "GreetApi";
+
+service Greeter {
+  // Request response
+  rpc SayHello (HelloRequest) returns (HelloResponse);
+  
+  // Streaming
+  rpc SayHelloServerStream (HelloRequest) returns (stream HelloResponse);
+}
+
+message HelloRequest {
+  common.Header header = 1;
+  string name = 2;
+  google.protobuf.StringValue nullable_string = 3;
+  HelloType type = 4;
+}
+
+message HelloResponse {
+  string message = 1;
+}
+
+enum HelloType {
+  HELLO_TYPE_UNKNOWN = 0;
+  HELLO_TYPE_ONE = 1;
+  HELLO_TYPE_TWO = 2;
+}

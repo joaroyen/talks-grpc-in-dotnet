@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>gRPC for .NET-utviklere</title>
+    <meta charset="utf-8">
+
+    <style>
+      @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+      @import url(https://fonts.googleapis.com/css?family=Droid+Serif:400,700,400italic);
+      @import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+      :root {
+        --background-color: #101515;
+        --primary-color: #0C4246;
+        --accent-color: #46100c;
+        --text-color: #e6e6e6;
+      }
+
+      body { font-family: 'Droid Serif'; }
+      h1, h2, h3 {
+        font-family: 'Yanone Kaffeesatz';
+        font-weight: normal;
+      }
+      li, p {
+        line-height: 150%;
+        font-size: xx-large;
+        margin: 0px;
+      }
+      li {
+        /* line-height: 150%; */
+        font-size: xx-large;
+      }
+      pre {
+        margin: 0px;
+      }
+      svg {
+        /* width: 100%;
+        height: 100%; */
+        max-height: 30em;
+      }
+      img {
+        max-width: 100%;
+        max-height: 30em;
+      }
+
+      .remark-code, .remark-inline-code {
+        font-family: 'Ubuntu Mono';
+        font-size: 20px;
+        line-height: normal;
+      }
+      .remark-container {
+        background-color: var(--background-color);
+      }
+      .remark-slide-content {
+        background-color: var(--background-color);
+        color: var(--text-color);
+      }
+    </style>
+  </head>
+  <body>
+    <textarea id="source">
+
+class: center, middle
+
+# gRPC for .NET-utviklere
+
+---
+
+# Spoiler!
+--
+
+- gRPC er en effektiv og plattformuavhengig kommunikasjonskanal
+--
+
+- gRPC tilbyr både request-response og strømming av meldinger
+--
+
+- Hosting av gRPC tjenester har noen begrensninger på .NET
+--
+
+- gRPC er et godt alternativ til REST for kommunikasjon mellom mikrotjenester
+
+---
+
+# Hvorfor skal vi bry oss om gRPC?
+
+- Deler kontrakt - ikke implementasjon
+- Microsofts anbefalte alternativ til .NET Remoting og WCF
+- Prosessering av binære requester og responser er mer effektiv enn tilsvarende Json serialiserte meldinger
+- Innebygd feilhåndtering med retry og "hedging"
+- Klientside lastbalansering
+- Bruker fortsatt HTTP som transport og eksisterende mellomvare kan benyttes
+
+???
+- Hedging
+  - Aggressiv parallell eksekvering av samme RPC kall. Første svar brukes. 
+- Lastbalansering
+  - Statisk og DNS-baserte oppslag av instanser.
+
+---
+
+# gRPC transport
+
+- En gRPC kanal benytter en eller flere HTTP forbindelser
+- HTTP/2 er foretrukken transport
+- HTTP/1.1 støttes også for bruk av browser som klient og servere på eldre plattformer
+  - Klient og toveis strømming støttes ikke
+  - Kan kreve noe konfigurasjon i ingress/reverse proxies og CORS
+- Kan bruke headere
+- Alt er HTTP POST
+--
+
+> **NB! Gjenbruk gRPC kanaler**
+
+---
+
+# gRPC tjenestedefinisjon
+
+- Protobuf: Eget språk som ligner på C# og andre C-beslektede språk
+- Deklarativ definisjon av tjenester, operasjoner og meldinger
+- Operasjoner kan være rene request-response eller strømming av meldinger i en eller begge retninger
+- Import av andre protobuf definisjoner
+  - Velkjente standardutvidelser fra Google
+  - Egne filer
+- Metadata om definisjonen
+- Tips: Følg designguide for skriving av definisjoner
+
+???
+SOAP WSDL
+
+---
+
+# gRPC meldingsdefinisjon
+
+- Felt i meldinger må ha et unikt sekvensnummer / identifikator
+- Innebygde typedefinisjoner
+  - Tall i alle varianter
+  - Strenger
+  - Bytes
+- Repeterbare felt (liste) og maps (dictionary)
+- Enumer
+  - Representeres med tallverdien
+  - Må starte med verdien 0
+
+???
+Lister: Generert kode støtter ikke initialisering, må kalle metoder for å legge til data
+
+---
+
+# gRPC meldingsdefinisjon (forts.)
+  
+- Kjente typeutvidelser
+  - Tid og dato: Er alltid UTC!
+  - Typer som kan være null via wrappere
+  - DecimalValue finnes i en foreslått implementasjon
+  - Ukjente og dynamiske verdier
+- Importer andre protobuf filer
+
+
+???
+DecimalValue: det diskuteres innad i Protobuf prosjektet hvordan tall med krav til høy presisjon skal representeres
+
+---
+
+# gRPC meldingsdefinisjon (forts.)
+
+> **NB! Flere verdityper i .NET mangler out-of-the-box serialisering.**
+--
+
+- System.Guid
+--
+
+- System.Version
+--
+
+- System.Exception
+
+---
+
+# Verktøystøtte
+
+- ASP.NET Core mal for gRPC service
+- NuGet pakke for automatisk generering av C# server- og klient-kode
+  - Access: public eller internal
+- Postman støtter gRPC og Protobuf
+
+---
+
+# Deling av kontrakter
+
+- Http tjenester har OpenAPI / Swagger og WCF har WSDL endepunkt
+- Noen løsninger
+  - Kopiering av protofiler mellom repositories
+  - Publisering av proto filer over http
+  - Egne pakker med kun proto filer, f.eks. NuGet
+  - Deling av filer internt i et repository
+  - Inkludere discovery endepunkt i tjenesten
+
+???
+
+- Noen verktøy kan legge til "referanser" fra http endepunkt
+- .NET gRPC code-first
+
+---
+
+class: center, middle
+
+# Demo: .NET gRPC
+
+---
+
+# Deling av kontrakter: Internt i en løsning
+
+- Kontraktsbibliotek
+  ``` xml
+  <ItemGroup>
+      <Content Include="Protos\**\*.proto" />
+  </ItemGroup>
+  ```
+--
+
+- Server
+  ``` xml
+  <ItemGroup>
+      <Protobuf Include="..\GrpcGreeter.Contracts\Protos\**\*.proto" GrpcServices="Server" />
+  </ItemGroup>
+  ```
+--
+
+- Klient
+  ``` xml
+  <ItemGroup>
+      <Protobuf Include="..\GrpcGreeter.Contracts\Protos\**\*.proto" GrpcServices="Client" />
+  </ItemGroup>
+  ```
+--
+
+- .NET navnerom kan enten settes i 'options csharp_namespace' eller avledes fra prosjektnavnet
+
+---
+
+class: center, middle
+
+# Demo: .NET gRPC code first
+
+> **NB! Kun aktuelt for intern kommunikasjon mellom .NET komponenter**
+
+> **NB! Community drevet prosjekt**
+
+
+???
+Migrering fra WCF
+
+---
+
+# Detaljer
+
+- Statuskoder er ikke de samme som HTTP-statuskoder men er mer veldefinerte
+- Egen exception `RpcException` for å fange feil som oppstår i gRPC kommunikasjonen
+- Interceptorer for å manipulere meldinger
+- Kommunikasjonskontekst for lesing og skriving av request og response headere
+- Response trailers for sending av metrikker og annen metadata tilbake til klienten
+- gRPC Json transcoding (.NET 7)
+
+---
+
+# Sikkerhet
+
+- Kan bruke eksisterende autentisering- og autorisasjonsmekanismer i ASP.NET Core
+  - Autentiserings- og autorisasjonsmellomvare
+  - Bearer tokens kan legges på via interceptor eller client factory
+- Bruk TLS!
+- Begrensninger i meldingsstørrelse
+- Struping av trafikk (.NET 7)
+
+---
+
+# Ytelse
+
+- Gjenbruk gRPC kanal
+- Om dataene du skal sende allerede er binær kan du bruke `UnsafeByteOperations.UnsafeWrap(data);` for å lage en `ByteString` uten å kopiere data
+- Bruk sockets isteden for TCP for lokal kommunikasjon
+- Innebygd støtte for lastbalansering
+- Innebygd støtte for komprimering
+
+???
+Sockets krever Windows Server 2019, tilsvarende Windows 10 versjon, Windows 11, Linux eller macOS 
+
+---
+
+# Versjonering
+
+- Tenk på bakoverkompatibilitet fra dag 1
+- Navn på felt kan endres men ikke navn på operasjoner
+- Ideelt bør man aldri bryte kompatibiliteten i et API. Det gjelder både innhold i meldinger og forventet oppførsel.
+- Om man likevel må ha en ikke kompatibel endring kan man legge inn et versjonsnummer i pakkenavnet:
+  ``` Protobuf
+  package greet.v1;
+  ```
+  - Da kan man også tilby ny og gammel kontrakt side om side
+
+---
+
+# Versjonering (forts.)
+
+- Felt id'ene kan ikke røres
+- Felt som tas bort får en standardverdi
+  - aldri gjenbruk id til et nytt felt.
+  - håndtering av standard verdier kan variere mellom plattformer og språk
+- Nye ukjente felt ignoreres
+  
+  `reserved 3, 5`
+
+- Felt kan markeres som utgått
+
+???
+Kan tenke på felt id som versjonsnummer. Det må økes for hver endring som gjøres.
+
+---
+
+# Logging
+
+Sett logg kategorien `Grpc` i `appsettings.json`
+``` json
+{
+  "Logging": {
+    "LogLevel": {
+      ...
+      "Grpc": "Debug"
+    }
+  },
+  ...
+}
+```
+
+---
+
+# Hvorfor ikke gRPC?
+
+- gRPC er ikke et alternativ til kø-basert kommunikasjon
+- gRPC har som mål å abstrahere bort nettverket som kan gi "chatty services"
+- REST/Json har bedre kompatibilitet og er mer egnet for mennesker
+- GraphQL/OData er bedre egnet for fleksible spørringer
+- Veldig enkelt å bryte kompatibilitet - Automatiske regresjonstester er et must!
+- Ikke støttet i Azure Web Apps (ennå), men kan kjøre i AKS
+- Generert kode bruker ikke nyeste funksjonalitet fra C#
+
+???
+Features:
+- Type initialization
+- records
+- Nullable checking
+
+---
+
+# Tips
+
+- Klienter kan registreres slik som typede http klienter
+  ``` csharp
+  builder.Services.AddGrpcClient<Greeter.GreeterClient>(o =>
+    {
+        o.Address = new Uri("https://localhost:5001");
+    });
+  ```
+--
+
+- Ikke bestandig endringer i proto filer blir plukket opp => Krever bygging.
+--
+
+- Intellisense plukker ikke alltid opp endringer i generert kode
+--
+
+![Rider Intellisense 1](./rider_intellisense_1.png)
+--
+
+![Rider Intellisense 2](./rider_intellisense_2.png)
+--
+
+  - Løsning er å laste prosjektet på nytt
+  
+---
+
+# Testing
+
+- Discovery endepunkt
+  ``` csharp
+  builder.Services.AddGrpcReflection();
+  ...
+  if (app.Environment.IsDevelopment())
+  {
+      app.MapGrpcReflectionService();
+  }
+  ```
+- gRPCurl
+  ``` sh
+  &gt; C:\tools\grpcurl.exe localhost:7008 describe
+  greet.Greeter is a service:
+  service Greeter {
+      rpc SayHello ( .greet.HelloRequest ) returns ( .greet.HelloResponse );
+      rpc SayHelloServerStream ( .greet.HelloRequest ) returns ( stream .greet.HelloResponse );
+  }
+  grpc.reflection.v1alpha.ServerReflection is a service:
+  service ServerReflection {
+      rpc ServerReflectionInfo ( stream .grpc.reflection.v1alpha.ServerReflectionRequest ) returns ( stream .grpc.reflection.v1alpha.ServerReflectionResponse );
+  }
+  ```
+- Postman
+
+---
+
+class: center, middle
+
+# Demo: Testing
+
+---
+
+# Oppsummering
+
+- gRPC er en effektiv og plattformuavhengig kommunikasjonskanal
+--
+
+- gRPC tilbyr både request-response og strømming av meldinger
+--
+
+- Hosting av gRPC tjenester har noen begrensninger på .NET
+--
+
+- gRPC er et alternativ til REST for kommunikasjon mellom mikrotjenester
+--
+
+- gRPC er ikke et alternativ til asynkron hendelsesdrevet kommunikasjon, men kan fungere som et alternativ til strømming av hendelser
+
+
+
+---
+
+class: center, middle
+
+# Spørsmål?
+
+---
+
+# Referanser
+
+- [Overview for gRPC on .NET](https://docs.microsoft.com/en-us/aspnet/core/grpc/)
+- [Protobuf style guide](https://developers.google.com/protocol-buffers/docs/style)
+
+
+    </textarea>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://remarkjs.com/downloads/remark-latest.min.js">
+    </script>
+    <script>
+      mermaid.initialize({
+        startOnLoad:false,
+        flowchartConfig: {
+          width: '100%'
+        }
+      });
+
+      var slideshow = remark.create( {
+        ratio: "16:9",
+        highlightStyle: 'monokai'
+      });
+
+      slideshow.on("afterShowSlide", s => {
+        const [slide] = document.getElementsByClassName("remark-visible");
+        mermaid.init(Array.from(slide.getElementsByClassName("mermaid")));
+      });
+    </script>
+  </body>
+</html>

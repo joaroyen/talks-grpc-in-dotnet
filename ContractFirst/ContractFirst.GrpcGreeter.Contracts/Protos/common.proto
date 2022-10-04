@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package greet.common;
+
+import "google/protobuf/wrappers.proto";
+
+option csharp_namespace = "GreetApi.Common";
+
+message Header {
+    Version version = 1;
+    google.protobuf.StringValue correlation_id = 2;    
+}
+
+message Version {
+  int32 major = 1;
+  int32 minor = 2;
+  int32 build = 3;
+  int32 revision = 4;
+}
